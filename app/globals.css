@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: #fafafa;
+  color: #171717;
+}
+
+/* Larger tap targets and no accidental double-tap zoom on the report
+   screen — this app is used one-handed, often in a hurry. */
+button,
+input,
+textarea {
+  touch-action: manipulation;
+}
