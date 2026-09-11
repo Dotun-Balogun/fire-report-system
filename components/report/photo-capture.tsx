@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, X, RotateCcw } from "lucide-react";
+import { Camera, Images, X, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PhotoCaptureProps {
@@ -11,14 +11,17 @@ interface PhotoCaptureProps {
 const MAX_SIZE_BYTES = 8 * 1024 * 1024; // 8MB, matches server action body limit
 
 /**
- * Deliberately NOT a text input. The reporter only ever sees a big button
- * and, once they've taken a shot, a preview. `capture="environment"` is
- * what makes a tap open the phone's back camera directly instead of a
- * gallery/file picker — the gallery is still reachable as a fallback the
- * browser offers automatically on most devices.
+ * Two separate inputs, two separate buttons — not one input trying to do
+ * both jobs. Relying on `capture="environment"` alone is unreliable across
+ * devices: some browsers force the camera open and hide the gallery option
+ * entirely, others ignore `capture` altogether. Giving the reporter an
+ * explicit "Take Photo" button (camera input) and "Choose from Gallery"
+ * button (plain file input) works predictably everywhere, and degrades
+ * gracefully to a normal file picker on desktop.
  */
 export function PhotoCapture({ onChange }: PhotoCaptureProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,33 +47,60 @@ export function PhotoCapture({ onChange }: PhotoCaptureProps) {
     setPreview(null);
     setError(null);
     onChange(null);
-    if (inputRef.current) inputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
   }
 
   return (
     <div>
+      {/* Camera input: capture="environment" opens the back camera directly
+          on devices/browsers that support it, and just falls back to a
+          normal file picker where it isn't supported (e.g. desktop). */}
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="sr-only"
         onChange={(e) => handleFile(e.target.files)}
       />
+      {/* Gallery input: no `capture` attribute, so this always opens the
+          normal photo library / file browser, never the camera. */}
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(e) => handleFile(e.target.files)}
+      />
 
       {!preview ? (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className={cn(
-            "flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed",
-            "border-neutral-300 bg-neutral-50 px-4 py-4 text-base font-medium text-neutral-700",
-            "hover:bg-neutral-100 active:scale-[0.99] transition"
-          )}
-        >
-          <Camera className="h-5 w-5" aria-hidden />
-          Add a photo (optional)
-        </button>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed",
+              "border-neutral-300 bg-neutral-50 px-3 py-4 text-sm font-medium text-neutral-700",
+              "hover:bg-neutral-100 active:scale-[0.98] transition"
+            )}
+          >
+            <Camera className="h-5 w-5" aria-hidden />
+            Take photo
+          </button>
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed",
+              "border-neutral-300 bg-neutral-50 px-3 py-4 text-sm font-medium text-neutral-700",
+              "hover:bg-neutral-100 active:scale-[0.98] transition"
+            )}
+          >
+            <Images className="h-5 w-5" aria-hidden />
+            Choose from gallery
+          </button>
+        </div>
       ) : (
         <div className="relative overflow-hidden rounded-xl border border-neutral-200">
           {/* eslint-disable-next-line @next/next/no-img-element */}
