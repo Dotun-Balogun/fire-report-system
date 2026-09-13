@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Circle, CircleDot, Flame } from "lucide-react";
+import { CheckCircle2, Circle, CircleDot, Copy, Check, Flame } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { IncidentStatus, Severity } from "@/types/database.types";
@@ -23,6 +23,7 @@ const STEPS: { key: IncidentStatus; label: string }[] = [
 
 export function StatusTracker({ code }: { code: string }) {
   const [row, setRow] = useState<StatusRow | null | "not_found">(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -42,6 +43,26 @@ export function StatusTracker({ code }: { code: string }) {
       clearInterval(interval);
     };
   }, [code]);
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      // Clipboard API can fail on very old browsers or without a secure
+      // context — fall back to a manual copy via a temporary text field.
+      const textarea = document.createElement("textarea");
+      textarea.value = code;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   if (row === null) {
     return <p className="text-sm text-neutral-500">Loading status…</p>;
@@ -72,15 +93,41 @@ export function StatusTracker({ code }: { code: string }) {
           : "⏳ Awaiting action — your report has been received."}
       </div>
 
-      <div className="mb-6 flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+      <div className="mb-2 flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
           <Flame className="h-5 w-5" aria-hidden />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="text-sm text-neutral-500">Tracking code</p>
-          <p className="font-mono text-lg font-semibold text-neutral-900">{code}</p>
+          <p className="truncate font-mono text-lg font-semibold text-neutral-900">{code}</p>
         </div>
+        <button
+          type="button"
+          onClick={copyCode}
+          className={cn(
+            "flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition",
+            copied
+              ? "border-green-300 bg-green-50 text-green-700"
+              : "border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50"
+          )}
+        >
+          {copied ? (
+            <>
+              <Check className="h-4 w-4" aria-hidden />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy className="h-4 w-4" aria-hidden />
+              Copy
+            </>
+          )}
+        </button>
       </div>
+      <p className="mb-6 text-xs text-neutral-500">
+        Save or share this code — it&apos;s the only way to check on this report from another
+        device without signing in.
+      </p>
 
       <ol className="space-y-4">
         {STEPS.map((step, i) => {
@@ -114,7 +161,9 @@ export function StatusTracker({ code }: { code: string }) {
         </p>
       )}
       <p className="mt-1 text-xs text-neutral-400">
-        Last updated {new Date(row.updated_at).toLocaleTimeString()}
+        This page checks for updates automatically every few seconds — no need to refresh. Last
+        checked {new Date().toLocaleTimeString()}, last changed{" "}
+        {new Date(row.updated_at).toLocaleTimeString()}.
       </p>
     </div>
   );
