@@ -7,9 +7,14 @@ export default function HomePage() {
     <div className="min-h-dvh bg-neutral-50">
       <NavBar
         right={
-          <Link href="/account" className="font-medium text-neutral-500 hover:text-neutral-800">
-            Sign in
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/track" className="font-medium text-neutral-500 hover:text-neutral-800">
+              Track a report
+            </Link>
+            <Link href="/account" className="font-medium text-neutral-500 hover:text-neutral-800">
+              My reports
+            </Link>
+          </div>
         }
       />
       <main className="mx-auto w-full max-w-lg px-4 py-6">
