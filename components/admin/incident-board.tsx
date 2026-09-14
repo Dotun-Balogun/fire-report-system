@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, Download, ImageIcon, Loader2, Phone } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BellRing, Check, Download, ImageIcon, Loader2, Phone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { updateIncidentStatus } from "@/app/admin/actions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,18 +32,79 @@ const SEVERITY_LABEL: Record<Severity, string> = {
 };
 
 const STATUS_OPTIONS: IncidentStatus[] = ["received", "verified", "dispatched", "resolved"];
+const ORIGINAL_TITLE = "Dispatcher Dashboard — Plateau State Fire Service";
 
 type SaveState = "saving" | "saved" | "error" | undefined;
+
+// Generates a short two-tone alert beep with no external audio file —
+// works the instant the page loads, nothing to fetch or fail to load.
+function playAlertSound() {
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const ctx = new AudioCtx();
+    [880, 660].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = "sine";
+      gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.18 + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.18);
+      osc.stop(ctx.currentTime + i * 0.18 + 0.16);
+    });
+  } catch {
+    // Some browsers block audio until the user has interacted with the
+    // page at least once — the visual toast and tab-title flash below
+    // still work regardless, so a new report is never silent AND invisible.
+  }
+}
 
 export function IncidentBoard({ initialIncidents }: { initialIncidents: IncidentRow[] }) {
   const [incidents, setIncidents] = useState<IncidentRow[]>(initialIncidents);
   const [saveState, setSaveState] = useState<Record<string, SaveState>>({});
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<string | null>(null);
+  const titleFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function startTitleFlash() {
+    if (titleFlashRef.current) return;
+    let on = false;
+    titleFlashRef.current = setInterval(() => {
+      document.title = on ? ORIGINAL_TITLE : "🔴 New Fire Report!";
+      on = !on;
+    }, 1000);
+  }
+  function stopTitleFlash() {
+    if (titleFlashRef.current) {
+      clearInterval(titleFlashRef.current);
+      titleFlashRef.current = null;
+    }
+    document.title = ORIGINAL_TITLE;
+  }
+
+  useEffect(() => {
+    // Stop the flashing tab title as soon as the dispatcher actually
+    // looks at the tab again.
+    function onFocus() {
+      stopTitleFlash();
+    }
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      stopTitleFlash();
+    };
+  }, []);
 
   useEffect(() => {
     const supabase = createClient();
 
     // Live channel: a new report from anywhere in the State appears on
-    // every open dashboard instantly, without a page refresh.
+    // every open dashboard instantly, without a page refresh — and now
+    // also triggers a sound, an on-screen banner, and a flashing browser
+    // tab title, so it is never just a silent list update a dispatcher
+    // could easily miss.
     const channel = supabase
       .channel("incident_reports_changes")
       .on(
@@ -51,7 +112,23 @@ export function IncidentBoard({ initialIncidents }: { initialIncidents: Incident
         { event: "*", schema: "public", table: "incident_reports" },
         (payload) => {
           if (payload.eventType === "INSERT") {
-            setIncidents((prev) => [payload.new as IncidentRow, ...prev]);
+            const incoming = payload.new as IncidentRow;
+            setIncidents((prev) => [incoming, ...prev]);
+
+            playAlertSound();
+            setToast(`🚨 New report received — ${incoming.tracking_code}`);
+            setTimeout(() => setToast(null), 6000);
+
+            setNewIds((prev) => new Set(prev).add(incoming.id));
+            setTimeout(() => {
+              setNewIds((prev) => {
+                const next = new Set(prev);
+                next.delete(incoming.id);
+                return next;
+              });
+            }, 10000);
+
+            if (document.hidden) startTitleFlash();
           } else if (payload.eventType === "UPDATE") {
             setIncidents((prev) =>
               prev.map((row) =>
@@ -109,25 +186,38 @@ export function IncidentBoard({ initialIncidents }: { initialIncidents: Incident
     URL.revokeObjectURL(url);
   }
 
-  if (incidents.length === 0) {
-    return <p className="text-sm text-neutral-500">No reports yet.</p>;
-  }
-
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button type="button" variant="outline" size="sm" onClick={exportCsv}>
-          <Download className="h-4 w-4" aria-hidden />
-          Export CSV
-        </Button>
-      </div>
+      {toast && (
+        <div className="flex items-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-lg">
+          <BellRing className="h-4 w-4 shrink-0 animate-pulse" aria-hidden />
+          {toast}
+        </div>
+      )}
+
+      {incidents.length === 0 ? (
+        <p className="text-sm text-neutral-500">No reports yet.</p>
+      ) : (
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={exportCsv}>
+            <Download className="h-4 w-4" aria-hidden />
+            Export CSV
+          </Button>
+        </div>
+      )}
+
       {incidents.map((incident) => {
         const state = saveState[incident.id];
+        const isNew = newIds.has(incident.id);
         return (
-          <Card key={incident.id}>
+          <Card
+            key={incident.id}
+            className={cn(isNew && "ring-2 ring-red-500 border-red-300")}
+          >
             <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex-1">
                 <div className="mb-1 flex flex-wrap items-center gap-2">
+                  {isNew && <Badge variant="major">NEW</Badge>}
                   <span className="font-mono text-sm font-semibold text-neutral-900">
                     {incident.tracking_code}
                   </span>
@@ -179,9 +269,6 @@ export function IncidentBoard({ initialIncidents }: { initialIncidents: Incident
                   ))}
                 </select>
 
-                {/* Explicit save feedback — without this, changing the
-                    dropdown gives no visible confirmation that it actually
-                    saved to the database. */}
                 <span
                   className={cn(
                     "flex items-center gap-1 text-xs font-medium",
