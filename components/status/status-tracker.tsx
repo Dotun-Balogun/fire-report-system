@@ -125,8 +125,9 @@ export function StatusTracker({ code }: { code: string }) {
         </button>
       </div>
       <p className="mb-6 text-xs text-neutral-500">
-        Save or share this code — it&apos;s the only way to check on this report from another
-        device without signing in.
+        Save or share this code. To check it from another device, go to the site's{" "}
+        <strong>Track a report</strong> page and paste it in — that&apos;s the only way to check
+        on this report without signing in.
       </p>
 
       <ol className="space-y-4">
