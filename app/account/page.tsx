@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { upgradeAccount, reporterSignIn, reporterSignOut } from "@/app/account/actions";
 import { NavBar } from "@/components/nav-bar";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -121,9 +122,9 @@ export default async function AccountPage({
               autoComplete={isSignIn ? "current-password" : "new-password"}
             />
           </div>
-          <Button type="submit" className="w-full">
+          <SubmitButton pendingText={isSignIn ? "Signing in…" : "Creating account…"} className="w-full">
             {isSignIn ? "Sign in" : "Create account"}
-          </Button>
+          </SubmitButton>
         </form>
 
         <p className="mt-4 text-center text-sm text-neutral-500">
